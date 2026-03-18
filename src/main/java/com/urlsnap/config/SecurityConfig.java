@@ -43,7 +43,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/{shortCode}").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/urls/*/stats").permitAll()
                         .requestMatchers("/swagger-ui/**", "/api-docs/**", "/swagger-ui.html").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/urls").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/urls").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/urls").authenticated()
                         .anyRequest().permitAll()
                 )
