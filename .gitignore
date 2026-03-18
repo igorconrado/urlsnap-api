@@ -1,0 +1,18 @@
+# Environment
+.env
+
+# Build
+target/
+
+# IDE
+.idea/
+*.iml
+
+# Compiled
+*.class
+
+# OS
+.DS_Store
+
+# Maven wrapper
+!.mvn/wrapper/maven-wrapper.jar
