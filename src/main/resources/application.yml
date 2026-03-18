@@ -24,6 +24,11 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
 
+security:
+  jwt:
+    secret: ${JWT_SECRET}
+    expiration: ${JWT_EXPIRATION}
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
