@@ -75,7 +75,8 @@ class AnalyticsControllerTest {
                 .header("Authorization", "Bearer " + token)
                 .content(objectMapper.writeValueAsString(request)));
 
-        mockMvc.perform(get("/api/analytics/stats1"))
+        mockMvc.perform(get("/api/analytics/stats1")
+                        .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.shortCode").value("stats1"))
                 .andExpect(jsonPath("$.originalUrl").value("https://stats-test.com"))
@@ -86,8 +87,24 @@ class AnalyticsControllerTest {
 
     @Test
     void getStats_shouldReturn404_whenNotFound() throws Exception {
-        mockMvc.perform(get("/api/analytics/nonexistent"))
+        mockMvc.perform(get("/api/analytics/nonexistent")
+                        .header("Authorization", "Bearer " + token))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error").value("URL not found"));
+    }
+
+    @Test
+    void getStats_shouldReturn403_forAnotherUsersUrl() throws Exception {
+        var request = new CreateUrlRequest("https://owner.example", "owned1", null);
+        mockMvc.perform(post("/api/urls")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer " + token)
+                .content(objectMapper.writeValueAsString(request)));
+
+        var other = authService.register(new RegisterRequest("Other", "other-analytics@urlsnap.com", "12345678"));
+        mockMvc.perform(get("/api/analytics/owned1")
+                        .header("Authorization", "Bearer " + other.getToken()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("Access denied"));
     }
 }
