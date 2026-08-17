@@ -22,12 +22,16 @@ public class AnalyticsService {
     private final UrlRepository urlRepository;
     private final ClickRepository clickRepository;
 
-    @Value("${BASE_URL:http://localhost:8080}")
+    @Value("${app.base-url}")
     private String baseUrl;
 
     public UrlStatsResponse getUrlStats(String shortCode, UUID userId) {
         Url url = urlRepository.findByShortCode(shortCode)
                 .orElseThrow(() -> new EntityNotFoundException("URL not found"));
+
+        if (url.getUser() == null || !url.getUser().getId().equals(userId)) {
+            throw new org.springframework.security.access.AccessDeniedException("Access denied");
+        }
 
         long totalClicks = clickRepository.countByUrlId(url.getId());
 

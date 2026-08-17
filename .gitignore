@@ -16,3 +16,12 @@ target/
 
 # Maven wrapper
 !.mvn/wrapper/maven-wrapper.jar
+
+# Codex and agent instructions
+.Codex/
+AGENTS.md
+.claudeignore
+
+# Logs and local data
+*.log
+data/
