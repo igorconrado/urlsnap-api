@@ -56,7 +56,8 @@ class AnalyticsControllerTest {
 
     @BeforeEach
     void setUp() {
-        when(rateLimitService.isAllowed(anyString())).thenReturn(true);
+        when(rateLimitService.consume(anyString()))
+                .thenReturn(new RateLimitService.RateLimitResult(true, 9, 60));
 
         if (userRepository.findByEmail("analytics@urlsnap.com").isEmpty()) {
             var response = authService.register(new RegisterRequest("Analyst", "analytics@urlsnap.com", "123456"));

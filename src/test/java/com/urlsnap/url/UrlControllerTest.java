@@ -54,7 +54,8 @@ class UrlControllerTest {
 
     @BeforeEach
     void setUp() {
-        when(rateLimitService.isAllowed(anyString())).thenReturn(true);
+        when(rateLimitService.consume(anyString()))
+                .thenReturn(new RateLimitService.RateLimitResult(true, 9, 60));
 
         if (userRepository.findByEmail("urltest@urlsnap.com").isEmpty()) {
             var response = authService.register(new RegisterRequest("Tester", "urltest@urlsnap.com", "123456"));
