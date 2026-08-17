@@ -12,4 +12,5 @@ WORKDIR /app
 COPY --from=build /workspace/target/urlsnap-api-*.jar app.jar
 USER app
 EXPOSE 8080
-ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "/app/app.jar"]
+ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=70 -XX:InitialRAMPercentage=20 -XX:+UseSerialGC"
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]
