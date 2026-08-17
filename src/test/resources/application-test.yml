@@ -19,11 +19,6 @@ spring:
   flyway:
     enabled: false
 
-  data:
-    redis:
-      host: localhost
-      port: 6379
-
 security:
   jwt:
     secret: test-secret-key-that-is-at-least-32-chars-long

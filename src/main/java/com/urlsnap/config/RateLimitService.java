@@ -1,63 +1,69 @@
 package com.urlsnap.config;
 
-import lombok.RequiredArgsConstructor;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.Ticker;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.data.redis.core.script.DefaultRedisScript;
-import org.springframework.dao.DataAccessException;
 
-import java.util.concurrent.TimeUnit;
-import java.util.List;
+import java.time.Duration;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Service
-@RequiredArgsConstructor
 public class RateLimitService {
 
-    private final StringRedisTemplate stringRedisTemplate;
+    private final Cache<String, RequestWindow> windows;
+    private final long maxRequests;
+    private final long windowNanos;
+    private final Ticker ticker;
 
-    private static final DefaultRedisScript<Long> INCREMENT_WITH_TTL = new DefaultRedisScript<>(
-            "local count = redis.call('INCR', KEYS[1]); " +
-            "if count == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]); end; return count;", Long.class);
+    @Autowired
+    public RateLimitService(
+            @Value("${app.rate-limit.max-requests}") long maxRequests,
+            @Value("${app.rate-limit.window-seconds}") long windowSeconds,
+            @Value("${app.rate-limit.maximum-clients}") long maximumClients) {
+        this(maxRequests, Duration.ofSeconds(windowSeconds), maximumClients, Ticker.systemTicker());
+    }
 
-    @Value("${app.rate-limit.max-requests}")
-    private long maxRequests;
+    RateLimitService(long maxRequests, Duration window, long maximumClients, Ticker ticker) {
+        if (maxRequests <= 0 || maximumClients <= 0 || window.isZero() || window.isNegative()) {
+            throw new IllegalArgumentException("Rate-limit values must be positive");
+        }
+        this.maxRequests = maxRequests;
+        this.windowNanos = window.toNanos();
+        this.ticker = ticker;
+        windows = Caffeine.newBuilder()
+                .maximumSize(maximumClients)
+                .expireAfterWrite(window)
+                .ticker(ticker)
+                .build();
+    }
 
-    @Value("${app.rate-limit.window-seconds}")
-    private long windowSeconds;
+    public RateLimitResult consume(String clientKey) {
+        long now = ticker.read();
+        RequestWindow window = windows.get(clientKey, ignored -> new RequestWindow(now));
+        long count = window.count.incrementAndGet();
+        long remaining = Math.max(0, maxRequests - count);
+        long resetNanos = Math.max(0, windowNanos - (now - window.startedAtNanos));
+        long resetSeconds = Math.max(1, Duration.ofNanos(resetNanos).toSeconds());
+        return new RateLimitResult(count <= maxRequests, remaining, resetSeconds);
+    }
 
-    @Value("${app.rate-limit.fail-open}")
-    private boolean failOpen;
+    long estimatedClientCount() {
+        windows.cleanUp();
+        return windows.estimatedSize();
+    }
 
-    public boolean isAllowed(String ipAddress) {
-        String key = "rate_limit:" + ipAddress;
-        try {
-            Long count = stringRedisTemplate.execute(INCREMENT_WITH_TTL, List.of(key), String.valueOf(windowSeconds));
-            return count != null && count <= maxRequests;
-        } catch (DataAccessException exception) {
-            return failOpen;
+    private static final class RequestWindow {
+        private final long startedAtNanos;
+        private final AtomicLong count = new AtomicLong();
+
+        private RequestWindow(long startedAtNanos) {
+            this.startedAtNanos = startedAtNanos;
         }
     }
 
-    public long getRemainingRequests(String ipAddress) {
-        try {
-            String value = stringRedisTemplate.opsForValue().get("rate_limit:" + ipAddress);
-            if (value == null) {
-                return maxRequests;
-            }
-            long used = Long.parseLong(value);
-            return Math.max(0, maxRequests - used);
-        } catch (DataAccessException | NumberFormatException exception) {
-            return maxRequests;
-        }
-    }
-
-    public long getResetSeconds(String ipAddress) {
-        try {
-            Long ttl = stringRedisTemplate.getExpire("rate_limit:" + ipAddress, TimeUnit.SECONDS);
-            return ttl == null || ttl < 0 ? windowSeconds : ttl;
-        } catch (DataAccessException exception) {
-            return windowSeconds;
-        }
+    public record RateLimitResult(boolean allowed, long remaining, long resetSeconds) {
     }
 }
