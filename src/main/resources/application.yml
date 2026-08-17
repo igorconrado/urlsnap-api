@@ -1,14 +1,20 @@
 server:
-  port: 8080
+  port: ${PORT:8080}
+  forward-headers-strategy: ${FORWARD_HEADERS_STRATEGY:NONE}
+  shutdown: graceful
 
 spring:
   datasource:
-    url: ${DB_URL}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/urlsnap}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:10}
+      connection-timeout: ${DB_CONNECTION_TIMEOUT_MS:30000}
 
   jpa:
-    show-sql: true
+    show-sql: false
+    open-in-view: false
     hibernate:
       ddl-auto: validate
     properties:
@@ -17,8 +23,9 @@ spring:
 
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
+      url: ${REDIS_URL:redis://localhost:6379}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:2s}
+      timeout: ${REDIS_COMMAND_TIMEOUT:2s}
 
   flyway:
     locations: classpath:db/migration
@@ -27,10 +34,28 @@ spring:
 security:
   jwt:
     secret: ${JWT_SECRET}
-    expiration: ${JWT_EXPIRATION}
+    expiration: ${JWT_EXPIRATION:86400000}
+
+app:
+  base-url: ${BASE_URL:http://localhost:8080}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+  rate-limit:
+    max-requests: ${RATE_LIMIT_MAX:10}
+    window-seconds: ${RATE_LIMIT_WINDOW_SECONDS:60}
+    fail-open: ${RATE_LIMIT_FAIL_OPEN:true}
 
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
   api-docs:
     path: /api-docs
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never

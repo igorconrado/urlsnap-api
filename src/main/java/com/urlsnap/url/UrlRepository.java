@@ -5,6 +5,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 public interface UrlRepository extends JpaRepository<Url, UUID> {
 
@@ -12,7 +14,7 @@ public interface UrlRepository extends JpaRepository<Url, UUID> {
 
     Optional<Url> findByShortCodeAndIsActiveTrue(String shortCode);
 
-    List<Url> findByUserIdOrderByCreatedAtDesc(UUID userId);
+    Page<Url> findByUserIdOrderByCreatedAtDesc(UUID userId, Pageable pageable);
 
     boolean existsByShortCode(String shortCode);
 }

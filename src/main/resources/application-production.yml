@@ -1,0 +1,11 @@
+spring:
+  jpa:
+    show-sql: false
+
+server:
+  forward-headers-strategy: ${FORWARD_HEADERS_STRATEGY:FRAMEWORK}
+
+logging:
+  level:
+    root: INFO
+    com.urlsnap: INFO

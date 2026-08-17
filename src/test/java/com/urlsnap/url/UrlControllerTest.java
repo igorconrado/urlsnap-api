@@ -81,15 +81,13 @@ class UrlControllerTest {
     }
 
     @Test
-    void createUrl_shouldReturn201_whenAnonymous() throws Exception {
+    void createUrl_shouldReturn401_whenAnonymous() throws Exception {
         var request = new CreateUrlRequest("https://example.com", null, null);
 
         mockMvc.perform(post("/api/urls")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.shortCode").isNotEmpty())
-                .andExpect(jsonPath("$.userId").isEmpty());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -116,7 +114,26 @@ class UrlControllerTest {
         mockMvc.perform(get("/api/urls")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$").isArray())
-                .andExpect(jsonPath("$[0].shortCode").isNotEmpty());
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.content[0].shortCode").isNotEmpty());
+    }
+
+    @Test
+    void createUrl_shouldRejectDangerousScheme() throws Exception {
+        var request = new CreateUrlRequest("javascript:alert(1)", null, null);
+
+        mockMvc.perform(post("/api/urls")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Bearer " + token)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("Validation failed"))
+                .andExpect(jsonPath("$.fields.originalUrl").exists());
+    }
+
+    @Test
+    void malformedToken_shouldReturn401() throws Exception {
+        mockMvc.perform(get("/api/urls").header("Authorization", "Bearer malformed"))
+                .andExpect(status().isUnauthorized());
     }
 }

@@ -14,6 +14,9 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.net.URI;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 @Service
 @RequiredArgsConstructor
@@ -25,10 +28,14 @@ public class UrlService {
     private final ClickService clickService;
     private final ClickRepository clickRepository;
 
-    @Value("${BASE_URL:http://localhost:8080}")
+    @Value("${app.base-url}")
     private String baseUrl;
 
     public UrlResponse createUrl(CreateUrlRequest request, UUID userId) {
+        validateDestination(request.getOriginalUrl());
+        if (request.getExpiresAt() != null && !request.getExpiresAt().isAfter(LocalDateTime.now())) {
+            throw new IllegalArgumentException("Expiration must be in the future");
+        }
         String shortCode;
 
         if (request.getCustomCode() != null && !request.getCustomCode().isBlank()) {
@@ -52,6 +59,18 @@ public class UrlService {
         urlCacheService.saveUrl(shortCode, request.getOriginalUrl());
 
         return toResponse(url, 0);
+    }
+
+    private void validateDestination(String value) {
+        try {
+            URI uri = URI.create(value);
+            if (!("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()))
+                    || uri.getHost() == null || uri.getUserInfo() != null) {
+                throw new IllegalArgumentException();
+            }
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException("URL must use HTTP or HTTPS and include a valid host");
+        }
     }
 
     public String redirect(String shortCode, HttpServletRequest request) {
@@ -80,10 +99,9 @@ public class UrlService {
         return url.getOriginalUrl();
     }
 
-    public List<UrlResponse> getUserUrls(UUID userId) {
-        return urlRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
-                .map(url -> toResponse(url, clickRepository.countByUrlId(url.getId())))
-                .toList();
+    public Page<UrlResponse> getUserUrls(UUID userId, Pageable pageable) {
+        return urlRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable)
+                .map(url -> toResponse(url, clickRepository.countByUrlId(url.getId())));
     }
 
     public UrlResponse deactivateUrl(UUID id, UUID userId) {
