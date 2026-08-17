@@ -1,47 +1,51 @@
 package com.urlsnap.url;
 
-import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.core.StringRedisTemplate;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.Ticker;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.dao.DataAccessException;
 
-import java.util.concurrent.TimeUnit;
+import java.time.Duration;
 
 @Service
-@RequiredArgsConstructor
 public class UrlCacheService {
 
-    private final StringRedisTemplate stringRedisTemplate;
+    private final Cache<String, String> redirects;
+
+    @Autowired
+    public UrlCacheService(
+            @Value("${app.cache.maximum-size}") long maximumSize,
+            @Value("${app.cache.ttl-seconds}") long ttlSeconds) {
+        this(maximumSize, Duration.ofSeconds(ttlSeconds), Ticker.systemTicker());
+    }
+
+    UrlCacheService(long maximumSize, Duration ttl, Ticker ticker) {
+        if (maximumSize <= 0 || ttl.isZero() || ttl.isNegative()) {
+            throw new IllegalArgumentException("Cache size and TTL must be positive");
+        }
+        redirects = Caffeine.newBuilder()
+                .maximumSize(maximumSize)
+                .expireAfterWrite(ttl)
+                .ticker(ticker)
+                .build();
+    }
 
     public String getUrl(String shortCode) {
-        try {
-            return stringRedisTemplate.opsForValue().get("url:" + shortCode);
-        } catch (DataAccessException exception) {
-            return null;
-        }
+        return redirects.getIfPresent(shortCode);
     }
 
     public void saveUrl(String shortCode, String originalUrl) {
-        try {
-            stringRedisTemplate.opsForValue().set("url:" + shortCode, originalUrl, 1, TimeUnit.HOURS);
-        } catch (DataAccessException ignored) {
-            // PostgreSQL remains the source of truth when Redis is unavailable.
-        }
+        redirects.put(shortCode, originalUrl);
     }
 
     public void invalidateUrl(String shortCode) {
-        try {
-            stringRedisTemplate.delete("url:" + shortCode);
-        } catch (DataAccessException ignored) {
-            // Deactivation is persisted in PostgreSQL and checked before every redirect.
-        }
+        redirects.invalidate(shortCode);
     }
 
-    public void incrementClickCount(String shortCode) {
-        try {
-            stringRedisTemplate.opsForValue().increment("clicks:" + shortCode);
-        } catch (DataAccessException ignored) {
-            // Redis counters are supplemental; persisted click events remain authoritative.
-        }
+    long estimatedSize() {
+        redirects.cleanUp();
+        return redirects.estimatedSize();
     }
 }

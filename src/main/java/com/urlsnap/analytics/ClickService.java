@@ -1,7 +1,6 @@
 package com.urlsnap.analytics;
 
 import com.urlsnap.url.Url;
-import com.urlsnap.url.UrlCacheService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Async;
@@ -14,7 +13,6 @@ import java.util.UUID;
 public class ClickService {
 
     private final ClickRepository clickRepository;
-    private final UrlCacheService urlCacheService;
 
     @Async
     public void recordClick(UUID urlId, String shortCode, HttpServletRequest request) {
@@ -26,6 +24,5 @@ public class ClickService {
                 .build();
 
         clickRepository.save(click);
-        urlCacheService.incrementClickCount(shortCode);
     }
 }
